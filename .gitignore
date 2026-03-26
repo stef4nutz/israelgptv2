@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+*.js
+*.js.map
+*.d.ts
+bot_output.txt
+New Text Document.txt
+!src/**/*.ts
