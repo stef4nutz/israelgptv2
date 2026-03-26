@@ -25,7 +25,7 @@ initDatabase();
 
 // Load Handlers
 const handlersPath = path.join(__dirname, 'handlers');
-const handlerFiles = fs.readdirSync(handlersPath).filter(file => file.endsWith('.ts'));
+const handlerFiles = fs.readdirSync(handlersPath).filter(file => file.endsWith('.ts') || file.endsWith('.js'));
 
 for (const file of handlerFiles) {
     const handler = require(path.join(handlersPath, file)).default || require(path.join(handlersPath, file));

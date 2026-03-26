@@ -4,7 +4,7 @@ import { ExtendedClient } from '../index';
 
 export default (client: ExtendedClient) => {
     const commandsPath = path.join(__dirname, '../commands');
-    const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.ts') && !file.endsWith('.d.ts'));
+    const commandFiles = fs.readdirSync(commandsPath).filter(file => (file.endsWith('.ts') || file.endsWith('.js')) && !file.endsWith('.d.ts'));
 
     for (const file of commandFiles) {
         const filePath = path.join(commandsPath, file);

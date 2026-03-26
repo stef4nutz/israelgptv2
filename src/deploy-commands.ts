@@ -7,7 +7,7 @@ dotenv.config();
 
 const commands: any[] = [];
 const commandsPath = path.join(__dirname, 'commands');
-const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.ts') && !file.endsWith('.d.ts'));
+const commandFiles = fs.readdirSync(commandsPath).filter(file => (file.endsWith('.ts') || file.endsWith('.js')) && !file.endsWith('.d.ts'));
 
 for (const file of commandFiles) {
 	const command = require(path.join(commandsPath, file)).default || require(path.join(commandsPath, file));
