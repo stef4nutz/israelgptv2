@@ -1,29 +1,36 @@
 import { SlashCommandBuilder, ChatInputCommandInteraction, EmbedBuilder, Message } from 'discord.js';
 import { ExtendedClient } from '../index';
 
-const createHelpEmbed = (client: ExtendedClient) => {
-    const embed = new EmbedBuilder()
-        .setTitle('🤖 IsraelGPT Help')
-        .setDescription('Here is a list of all available commands. You can use them with `/` or `$`.')
-        .setColor('#0038b8') // Israel flag blue
-        .setThumbnail(client.user?.displayAvatarURL() || null)
-        .setTimestamp();
-
-    // Get unique commands (Collection might have aliases or duplicates if implemented later)
+const createHelpEmbeds = (client: ExtendedClient) => {
     const commands = Array.from(client.commands.values());
-    
-    // Sort commands alphabetically
     commands.sort((a, b) => a.data.name.localeCompare(b.data.name));
 
-    for (const command of commands) {
-        embed.addFields({
-            name: `\`/${command.data.name}\` or \`$${command.data.name}\``,
-            value: command.data.description || 'No description provided.',
-            inline: true
-        });
+    const embeds: EmbedBuilder[] = [];
+    const CHUNK_SIZE = 24; // Keep it slightly under 25 to be safe
+
+    for (let i = 0; i < commands.length; i += CHUNK_SIZE) {
+        const chunk = commands.slice(i, i + CHUNK_SIZE);
+        const embed = new EmbedBuilder()
+            .setTitle(i === 0 ? '🤖 IsraelGPT Help' : '🤖 IsraelGPT Help (cont.)')
+            .setDescription(i === 0 ? 'Here is a list of all available commands. You can use them with `/` or `$`.' : 'More commands:')
+            .setColor('#0038b8')
+            .setTimestamp();
+
+        if (i === 0) {
+            embed.setThumbnail(client.user?.displayAvatarURL() || null);
+        }
+
+        for (const command of chunk) {
+            embed.addFields({
+                name: `\`/${command.data.name}\` or \`$${command.data.name}\``,
+                value: command.data.description || 'No description provided.',
+                inline: true
+            });
+        }
+        embeds.push(embed);
     }
 
-    return embed;
+    return embeds;
 };
 
 export default {
@@ -34,14 +41,14 @@ export default {
     // Slash command execution
     async execute(interaction: ChatInputCommandInteraction) {
         const client = interaction.client as ExtendedClient;
-        const embed = createHelpEmbed(client);
-        await interaction.reply({ embeds: [embed] });
+        const embeds = createHelpEmbeds(client);
+        await interaction.reply({ embeds });
     },
 
     // Prefix command execution ($help)
     async messageExecute(message: Message) {
         const client = message.client as ExtendedClient;
-        const embed = createHelpEmbed(client);
-        await message.reply({ embeds: [embed] });
+        const embeds = createHelpEmbeds(client);
+        await message.reply({ embeds });
     }
 };
