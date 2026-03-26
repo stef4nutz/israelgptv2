@@ -26,8 +26,10 @@ export default {
             try {
                 await command.messageExecute(message, args);
             } catch (error) {
-                console.error(`Error executing prefix command ${commandName}:`, error);
-                await message.reply('There was an error while executing this command!').catch(() => {});
+                console.error(`[ERROR] Prefix command "${commandName}" failed:`, error);
+                
+                // Only reply if it was a fatal error during initial execution
+                await message.reply('❌ There was an error while executing this command!').catch(() => {});
             }
         } else {
             // Fallback or notification that it's slash-only

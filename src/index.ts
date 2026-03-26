@@ -4,6 +4,14 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err);
+});
+
 dotenv.config();
 
 export interface ExtendedClient extends Client {

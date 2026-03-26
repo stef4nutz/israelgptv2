@@ -44,8 +44,22 @@ export default {
         }
 
         const user = await User.findOne({ userId: interaction.user.id });
+        if (user?.lastJobAt) {
+            const cooldown = 10 * 1000;
+            const remaining = cooldown - (Date.now() - user.lastJobAt.getTime());
+            if (remaining > 0) {
+                return interaction.editReply(`⏳ **Wait!** You can work again in **${(remaining / 1000).toFixed(1)}** seconds.`);
+            }
+        }
+
+        // Update cooldown immediately to prevent spam
+        if (user) {
+            user.lastJobAt = new Date();
+            await user.save();
+        }
+
         // Run the job sequence
-        await this.handleJobProcess(interaction, interaction.user.id, card, user?.nationality || 'Israelian');
+        await this.handleJobProcess(interaction, interaction.user.id, card, user?.nationality || 'Israelian', user);
     },
 
     async messageExecute(message: Message, args: string[]) {
@@ -55,10 +69,24 @@ export default {
         }
 
         const user = await User.findOne({ userId: message.author.id });
-        await this.handleJobProcess(message, message.author.id, card, user?.nationality || 'Israelian');
+        if (user?.lastJobAt) {
+            const cooldown = 10 * 1000;
+            const remaining = cooldown - (Date.now() - user.lastJobAt.getTime());
+            if (remaining > 0) {
+                return message.reply(`⏳ **Wait!** You can work again in **${(remaining / 1000).toFixed(1)}** seconds.`);
+            }
+        }
+
+        // Update cooldown immediately to prevent spam
+        if (user) {
+            user.lastJobAt = new Date();
+            await user.save();
+        }
+
+        await this.handleJobProcess(message, message.author.id, card, user?.nationality || 'Israelian', user);
     },
 
-    async handleJobProcess(context: any, userId: string, card: any, nationality: string) {
+    async handleJobProcess(context: any, userId: string, card: any, nationality: string, user: any) {
         const isInteraction = !!context.editReply;
         const isAmerican = (nationality || '').toLowerCase() === 'american';
 
@@ -68,104 +96,109 @@ export default {
         let initialContent = `<@${userId}> currently doing the job...`;
         let msg: any;
 
-        if (isInteraction) {
-            msg = await context.editReply(initialContent);
-        } else {
-            msg = await context.reply(initialContent);
-        }
-
-        // Simulating loading
-        const delays = [1500, 1500];
-        const statusUpdates = [
-            `<@${userId}> currently doing the job... Still doing the job....`,
-            `<@${userId}> currently doing the job... Still doing the job.... Almost finished!`
-        ];
-
-        for (let i = 0; i < statusUpdates.length; i++) {
-            await new Promise(resolve => setTimeout(resolve, delays[i]));
+        try {
             if (isInteraction) {
-                await context.editReply(statusUpdates[i]);
+                msg = await context.editReply(initialContent);
             } else {
-                await msg.edit(statusUpdates[i]);
+                msg = await context.reply(initialContent);
             }
-        }
 
-        await new Promise(resolve => setTimeout(resolve, 1000));
+            // Simulating loading
+            const delays = [1500, 1500];
+            const statusUpdates = [
+                `<@${userId}> currently doing the job... Still doing the job....`,
+                `<@${userId}> currently doing the job... Still doing the job.... Almost finished!`
+            ];
 
-        // Select a job
-        const totalWeight = jobPool.reduce((sum, job) => sum + job.weight, 0);
-        let random = Math.random() * totalWeight;
-        let selectedJob = jobPool[0];
-
-        for (const job of jobPool) {
-            if (random < job.weight) {
-                selectedJob = job;
-                break;
+            for (let i = 0; i < statusUpdates.length; i++) {
+                await new Promise(resolve => setTimeout(resolve, delays[i]));
+                if (isInteraction) {
+                    await context.editReply(statusUpdates[i]);
+                } else {
+                    await msg.edit(statusUpdates[i]);
+                }
             }
-            random -= job.weight;
-        }
 
-        const grossAmount = Math.floor(Math.random() * (selectedJob.max - selectedJob.min + 1)) + selectedJob.min;
+            await new Promise(resolve => setTimeout(resolve, 1000));
 
-        let finalAmount = grossAmount;
-        let taxDuction = 0;
-        let taxMsg = "";
+            // Select a job
+            const totalWeight = jobPool.reduce((sum, job) => sum + job.weight, 0);
+            let random = Math.random() * totalWeight;
+            let selectedJob = jobPool[0];
 
-        if (isAmerican) {
-            const aidTaxRate = 0.40;
-            const federalTaxRate = 0.10;
-            
-            const aidTaxAmount = Math.floor(grossAmount * aidTaxRate);
-            const federalTaxAmount = Math.floor(grossAmount * federalTaxRate);
-            
-            taxDuction = aidTaxAmount + federalTaxAmount;
-            finalAmount = grossAmount - taxDuction;
-            
-            taxMsg = `\n> **Gross Pay:** $${grossAmount.toLocaleString()}\n> **US Aid to Israel (40%):** -$${aidTaxAmount.toLocaleString()}\n> **Federal Tax (10%):** -$${federalTaxAmount.toLocaleString()}\n> *Your paycheck got deducted for tax and most of it was sent to Israel!* 🇮🇱`;
-
-            // Accumulate US Aid in Israelian National Treasury
-            try {
-                let israelBank = await NationalBank.findOne({ nation: 'Israelian' });
-                if (!israelBank) israelBank = await NationalBank.create({ nation: 'Israelian', balance: 0, currency: '₪' });
-                israelBank.balance += aidTaxAmount;
-                await israelBank.save();
-
-                // Accumulate Federal Tax in American National Treasury
-                let americanBank = await NationalBank.findOne({ nation: 'American' });
-                if (!americanBank) americanBank = await NationalBank.create({ nation: 'American', balance: 0, currency: '$' });
-                americanBank.balance += federalTaxAmount;
-                await americanBank.save();
-            } catch (err) {
-                console.error('Error updating national funds:', err);
+            for (const job of jobPool) {
+                if (random < job.weight) {
+                    selectedJob = job;
+                    break;
+                }
+                random -= job.weight;
             }
-        } else {
-            const israelTaxRate = 0.10; // 10% tax for Israelis
-            taxDuction = Math.floor(grossAmount * israelTaxRate);
-            finalAmount = grossAmount - taxDuction;
 
-            taxMsg = `\n> **Gross Pay:** ₪${grossAmount.toLocaleString()}\n> **Israeli National Tax (10%):** -₪${taxDuction.toLocaleString()}\n> *Since you are Israelian, you pay less tax than the Americans!* 🇮🇱`;
+            const grossAmount = Math.floor(Math.random() * (selectedJob.max - selectedJob.min + 1)) + selectedJob.min;
 
-            // Accumulate in Israelian National Treasury
-            try {
-                let israelBank = await NationalBank.findOne({ nation: 'Israelian' });
-                if (!israelBank) israelBank = await NationalBank.create({ nation: 'Israelian', balance: 0, currency: '₪' });
-                israelBank.balance += taxDuction;
-                await israelBank.save();
-            } catch (err) {
-                console.error('Error updating Israelian Treasury:', err);
+            let finalAmount = grossAmount;
+            let taxDuction = 0;
+            let taxMsg = "";
+
+            if (isAmerican) {
+                const aidTaxRate = 0.40;
+                const federalTaxRate = 0.10;
+                
+                const aidTaxAmount = Math.floor(grossAmount * aidTaxRate);
+                const federalTaxAmount = Math.floor(grossAmount * federalTaxRate);
+                
+                taxDuction = aidTaxAmount + federalTaxAmount;
+                finalAmount = grossAmount - taxDuction;
+                
+                taxMsg = `\n> **Gross Pay:** $${grossAmount.toLocaleString()}\n> **US Aid to Israel (40%):** -$${aidTaxAmount.toLocaleString()}\n> **Federal Tax (10%):** -$${federalTaxAmount.toLocaleString()}\n> *Your paycheck got deducted for tax and most of it was sent to Israel!* 🇮🇱`;
+
+                // Accumulate US Aid in Israelian National Treasury
+                try {
+                    let israelBank = await NationalBank.findOne({ nation: 'Israelian' });
+                    if (!israelBank) israelBank = await NationalBank.create({ nation: 'Israelian', balance: 0, currency: '₪' });
+                    israelBank.balance += aidTaxAmount;
+                    await israelBank.save();
+
+                    // Accumulate Federal Tax in American National Treasury
+                    let americanBank = await NationalBank.findOne({ nation: 'American' });
+                    if (!americanBank) americanBank = await NationalBank.create({ nation: 'American', balance: 0, currency: '$' });
+                    americanBank.balance += federalTaxAmount;
+                    await americanBank.save();
+                } catch (err) {
+                    console.error('Error updating national funds:', err);
+                }
+            } else {
+                const israelTaxRate = 0.10; // 10% tax for Israelis
+                taxDuction = Math.floor(grossAmount * israelTaxRate);
+                finalAmount = grossAmount - taxDuction;
+
+                taxMsg = `\n> **Gross Pay:** ₪${grossAmount.toLocaleString()}\n> **Israeli National Tax (10%):** -₪${taxDuction.toLocaleString()}\n> *Since you are Israelian, you pay less tax than the Americans!* 🇮🇱`;
+
+                // Accumulate in Israelian National Treasury
+                try {
+                    let israelBank = await NationalBank.findOne({ nation: 'Israelian' });
+                    if (!israelBank) israelBank = await NationalBank.create({ nation: 'Israelian', balance: 0, currency: '₪' });
+                    israelBank.balance += taxDuction;
+                    await israelBank.save();
+                } catch (err) {
+                    console.error('Error updating Israelian Treasury:', err);
+                }
             }
-        }
 
-        // Update balance
-        card.balance += finalAmount;
-        await card.save();
+            // Update balance
+            card.balance += finalAmount;
+            await card.save();
 
-        const finalContent = `<@${userId}> did the **${selectedJob.name}**! They earned **${currency}${finalAmount.toLocaleString()}** net.${taxMsg}`;
+            const finalContent = `<@${userId}> did the **${selectedJob.name}**! They earned **${currency}${finalAmount.toLocaleString()}** net.${taxMsg}`;
 
-        if (isInteraction) {
-            await context.editReply(finalContent);
-        } else {
-            await msg.edit(finalContent);
+            if (isInteraction) {
+                await context.editReply(finalContent);
+            } else {
+                await msg.edit(finalContent);
+            }
+        } catch (error) {
+            console.error('Error in handleJobProcess:', error);
+            throw error; // Re-throw to be caught by the main handler
         }
     }
 };

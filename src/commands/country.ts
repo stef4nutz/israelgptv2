@@ -3,6 +3,7 @@ import User from '../database/models/User';
 import Relationship from '../database/models/Relationship';
 import BankCard from '../database/models/BankCard';
 import NationalBank from '../database/models/NationalBank';
+import PoliticalParty from '../database/models/PoliticalParty';
 
 export default {
     data: new SlashCommandBuilder()
@@ -102,6 +103,15 @@ async function getCountryEmbed(nation: string) {
     const treasury = await NationalBank.findOne({ nation: nation });
     const treasuryBalance = treasury ? `${treasury.balance.toLocaleString()} ${treasury.currency}` : 'Unknown';
     const motto = treasury?.motto || 'No motto set yet.';
+    // 6. Political Parties
+    const topParties = await PoliticalParty.find({ nationality: nation })
+        .sort({ memberIds: -1 }) // Sort by number of members (descending)
+        .limit(3)
+        .lean();
+
+    const partyList = topParties.length > 0
+        ? topParties.map((p, i) => `${i + 1}. ${p.emoji} **${p.name}** (${p.memberIds.length}/10 members)`).join('\n')
+        : 'No parties established.';
 
     const embed = new EmbedBuilder()
         .setTitle(`${flag} ${countryName} Statistics`)
@@ -112,7 +122,8 @@ async function getCountryEmbed(nation: string) {
             { name: '🏛️ Government', value: `**${leaderTitle}:** ${president ? president.username : 'Vacant'}\n**${secondTitle}:** ${secondLeader ? secondLeader.username : 'Vacant'}`, inline: true },
             { name: '👥 Population', value: `**Citizens:** ${citizenCount}\n**Marriages:** ${marriageCount}`, inline: true },
             { name: '💰 Treasury', value: `**Balance:** ${treasuryBalance}`, inline: false },
-            { name: '🏆 Top 5 Richest Citizens', value: richestList, inline: false }
+            { name: '🏆 Top 5 Richest Citizens', value: richestList, inline: false },
+            { name: '🚩 Top 3 Political Parties', value: partyList, inline: false }
         )
         .setTimestamp()
         .setFooter({ text: `${nation} National Records` });
